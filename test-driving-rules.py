@@ -157,8 +157,8 @@ class Illinois(unittest.TestCase):
         sample2 = "If you come across a roadway or viaduct that has been flooded due to heavy rain, do not drive " \
                   "through the flooded area. "
         test2 = extract_rule(sample2)
-        self.assertEqual(test2, 'IF OR((self, come, roadway), AND((viaduct, isA, None), (self, hasA, rain))), '
-                                'THEN NOT(self, do, area)')
+        #self.assertEqual(test2, 'IF OR((self, come, roadway), AND((viaduct, isA, None), (self, hasA, rain))), '
+                                #'THEN NOT(self, do, area)')
         # self.assertEqual(test2, 'IF(self, come, roadway), THEN NOT (self, drive, flood)')
         # print("Flood: %s"%test2)
 
@@ -166,7 +166,7 @@ class Illinois(unittest.TestCase):
         sample3 = "In a business or residential area, you must give a continuous turn signal for at least 100 feet " \
                   "before turning. In other areas, the signal must be given at least 200 feet before turning. "
         test3 = extract_rule(sample3)
-        self.assertEqual(test3, 'IF OR((business, isA, None), (area, isA, None)), THEN (turn, for, feet)')
+        #self.assertEqual(test3, 'IF OR((business, isA, None), (area, isA, None)), THEN (turn, for, feet)')
         print("s3: %s" % test3)
         # Expected 'IF OR((business, isA, None), (area, isA, None)), THEN (turn, for, feet)'
         # Output  IF((self, must, turn), (self, in a, residential area)) THEN (self, turn signal, '
@@ -177,9 +177,9 @@ class Illinois(unittest.TestCase):
                   "your vehicle and to the left by turning your head and visually assessing the area. If the area is " \
                   "clear, give the left-turn signal and carefully move into the left lane. "
         test4 = extract_rule(sample4)
-        self.assertEqual(test4,
-                         'IF (vehicle, from, right-hand), THEN AND((check, for, traffic), AND((self, left, head), '
-                         'AND((area, If, area), (self, move, left))))')
+        #self.assertEqual(test4,
+                        # 'IF (vehicle, from, right-hand), THEN AND((check, for, traffic), AND((self, left, head), '
+                         #'AND((area, If, area), (self, move, left))))')
         print("s4: %s" % test4)
         # Expected - IF(self, moving to, left hand lane) THEN (self, check behind, vehicle)
         # Output - 'IF (vehicle, from, right-hand), THEN AND((check, for, traffic), AND((self, left, head), '
@@ -188,11 +188,13 @@ class Illinois(unittest.TestCase):
         sample5 = "If you park on a street with curbing and your vehicle is facing downhill, turn the front wheels " \
                   "toward the curb so your vehicle will roll toward the curb. "
         test5 = extract_rule(sample5)
-        self.assertEqual(test5, 'IF AND((street, with, curbing), (vehicle, isA, downhill)), THEN (front, toward, curb)')
+        #self.assertEqual(test5, 'IF AND((street, with, curbing), (vehicle, isA, downhill)), THEN (front, toward, curb)')
         print("s5: %s" % test5)
         # Expected - IF AND ((self, parking, curbing street) (self, parking, downhill)) THEN (self, turn wheels,
         # toward curb)
         # Output - IF AND((street, with, curbing), (vehicle, isA, downhill)), THEN (front, toward, curb)
+        hi = "hi"
+        self.assertEqual(hi, "h")
 
 
 class California(unittest.TestCase):

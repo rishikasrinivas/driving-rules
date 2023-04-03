@@ -1,21 +1,19 @@
 # importing required modules
-import argparse
-import nltk
 
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-
+import spacy
+nlp = spacy.load('en_core_web_sm')
 from typing import Tuple, List
 import PyPDF2
-from nltk import pos_tag
-from nltk.tokenize import word_tokenize, sent_tokenize
 # from production import IF, AND, OR, NOT, THEN, DELETE, forward_chain, pretty_goal_tree
 import re
 import logging
 
+from nltk import word_tokenize
+
 LOCAL_TEXT_PATH = 'manual_text/'
 LOCAL_PATH = 'manuals/'
 IF_ = 'if'
+WHEN = 'when'
 THEN = 'then'
 NEVER = 'never'
 BC = 'BECAUSE'
@@ -43,17 +41,17 @@ KEY_PHRASES = ['blind spot', 'traffic light', 'traffic signal', 'safety belt', '
 
 def read_manual(state:str='MA', file_name='MA_Drivers_Manual.pdf', rule_file:str=""):
     """
-    File located at 
+    File located at
     MA: https://driving-tests.org/wp-content/uploads/2020/03/MA_Drivers_Manual.pdf
     CA: https://www.dmv.ca.gov/portal/file/california-driver-handbook-pdf/
     """
     if state == 'CA':
         file_name = 'CA_driving_handbook.pdf'
     pdfFile = open(LOCAL_PATH + file_name, 'rb')
-    # creating a pdf reader object 
-    pdfReader = PyPDF2.PdfFileReader(pdfFile)
+    # creating a pdf reader object
+    pdfReader = PyPDF2.PdfReader(pdfFile)
 
-    # printing number of pages in pdf file 
+    # printing number of pages in pdf file
     #MAX_PAGES = pdfReader.numPages
     MAX_PAGES = 20
     #    MAX_PAGES = 10
@@ -67,8 +65,8 @@ def read_manual(state:str='MA', file_name='MA_Drivers_Manual.pdf', rule_file:str
     """
     #Other options for triple format, why did we stick to triple format? is it utilized in a better way in the next part of the project?
     for page in range(START_PAGE, END_PAGE):
-        pageObj = pdfReader.getPage(page)
-        pageText = pageObj.extractText()
+        pageObj = pdfReader.pages[page]
+        pageText = pageObj.extract_text()
         #print(pageText)
         # if page == START_PAGE:
         #     print(pageText)
@@ -92,6 +90,7 @@ def write_to_text_file(sentences: List, rule_file: str):
     f.close()
 
 
+
 def extract_if_then(page_text: str):
     """
     Check for rule keywords in text
@@ -108,7 +107,7 @@ def extract_if_then(page_text: str):
     sentences = updated_text.split('.')
 
     for sentence in sentences:
-       
+
         tokens = word_tokenize(sentence.lower())
         if IF_ in tokens and len(tokens) < MAX_WORDS:
             print("Sentence: "+sentence+"\n")
@@ -124,10 +123,12 @@ def extract_if_then(page_text: str):
                 logging.debug("Root it %s" % sentence.strip())
                 logging.debug("  Rule is:  %s" % rule)
                 counter += 1
-                print(rule) 
+                print(rule)
                 rules.append(rule)
                 all_sentences.append(stripped+"\n")
     return (rules, all_sentences)
+
+
 
 
 def containsNumber(value):
@@ -146,7 +147,6 @@ def extract_rule(sentence) -> str:
     # sometimes if is the last part:
     try:
         if_clause, then_clause = set_if_clause(if_then)
-
         if_triples = make_triples_from_phrase(if_clause)
         then_triples = make_triples_from_phrase(then_clause)
         return 'IF %s, THEN %s' % (if_triples, then_triples)
@@ -161,24 +161,27 @@ def set_if_clause(clauses) -> Tuple:
     """
     logging.debug("I'm here with %s" % clauses)
     if len(clauses) == 2:
-        if IF_ in clauses[0].lower():
+        if IF_ in clauses[0].lower() or WHEN in clauses[0].lower():
             return tuple(clauses)
         else:
             return clauses[1], clauses[0]
     elif len(clauses) == 1:  # It didn't get separated
         logging.debug("Didn't split on regex, trying to split on if or then keyword")
-        if IF_ in clauses[0]:
+        if IF_ in clauses[0].lower():
             all_tokens = clauses[0].split(IF_)
-            then_clause = all_tokens[0]
-            full_if = ""
-            for part in all_tokens[1::]:
-                full_if += part.strip() + ' '
-            return full_if.strip(), then_clause.strip()
+        elif WHEN in clauses[0].lower(): # added so it can check for "when" if "if" not present
+            all_tokens = clauses[0].split(WHEN)
+        then_clause = all_tokens[0]
+        full_if = ""
+        for part in all_tokens[1::]:
+            full_if += part.strip() + ' '
+        return full_if.strip(), then_clause.strip()
     else:  # put the commas back together
         full_then = ""
         for item in clauses[1::]:
             full_then += item
         return clauses[0], full_then
+
 # Modified function with return type updates and previous triple storage
 pTriple = []
 def make_triples_from_phrase(phrase: str, full_phrase:str = ""):
@@ -191,8 +194,9 @@ def make_triples_from_phrase(phrase: str, full_phrase:str = ""):
                 parts = phrase.split(AND, 1)
                 triple1 = make_triples_from_phrase(parts[0])
                 if triple1 is not None:
-                 pTriple = triple1.strip('()').split(',')
+                    pTriple = triple1.strip('()').split(',')
                 triple2 = make_triples_from_phrase(parts[1])
+                print("triple2, 200",triple2 )
                 #Make a keyword selection check here
                 #]keyword_selection(phrase,triple1)
                 #keyword_selection(phrase,triple2)
@@ -211,27 +215,27 @@ def make_triples_from_phrase(phrase: str, full_phrase:str = ""):
                     pTriple = triple1.strip('()').split(',')
                 triple2 = make_triples_from_phrase(parts[1])
                 return "OR(%s, %s)" %(triple1, triple2)
-                
+
     else:
         return make_one_triple(phrase)
 
 def keyword_selection(phrase:str,obj: str):
     """
     Function to check if the keyword is split and formed in the triple. If so we replace it with the entire keyword
-    """   
+    """
     for kword in KEYWORDS:
         if kword in phrase:
              return kword
     return obj
-        
-    
-#def make_triples_from_phrase_original(phrase: str, full_phrase:str = ""):
+
+
+def make_triples_from_phrase_original(phrase: str, full_phrase:str = ""):
     """
     Struggled with this one. So I think we need to find all the occurences
     Keeping a full phrase in case....
     """
     # Original function with original functionality the above function is the v2.
-    # probably keep a global variable to keep the list of triples or keep a triple variable which has the previous variable but the issue here would be if there is 
+    # probably keep a global variable to keep the list of triples or keep a triple variable which has the previous variable but the issue here would be if there is
     # a  multiple split in the sentence then its hard to keep track
     # we need to change the workflow for this function to adapt to the changes in make_one_triple
     # How to split the work to independant study and MS project works and the timeline for MS might be extended.
@@ -273,20 +277,20 @@ traffic
 how to fix this?
 > AND seems to be working might need to make a separate function to prevent code redundancy.
 > Next task to focus on is making triples a lil better.
- 
-    
-       
-    """
- """   logging.debug("  Making triples for %s"%phrase)
+ """
+
+
+    logging.debug("  Making triples for %s"%phrase)
     if AND in phrase or OR in phrase or THAT in phrase:
         tokens = word_tokenize(phrase)
         for token in tokens:
-            if token == AND.strip():
+            if token == AND.strip() or token.lower() == 'while'.strip():
                 parts = phrase.split(AND, 1)
                 triple1 = make_triples_from_phrase(parts[0])
                 if triple1 is not None:
                  pTriple = triple1.strip('()').split(',')
                 triple2 = make_triples_from_phrase(parts[1])
+                print("triple2,303")
                 #Make a keyword selection check here
                 #]keyword_selection(phrase,triple1)
                 #keyword_selection(phrase,triple2)
@@ -297,15 +301,18 @@ how to fix this?
                 if triple1 is not None:
                     pTriple = triple1.strip('()').split(',')
                 triple2 = make_triples_from_phrase(parts[1])
+
                 return "AND(%s, %s)" %(triple1, triple2)
             elif token == OR.strip():
                 parts = phrase.split(OR, 1)
                 # "If there is a white stop line or crosswalk line" then triple is AND(self,isA,stop)(crosswalk,isA,None)
                 return "OR(%s, %s)" %(make_triples_from_phrase(parts[0]), make_triples_from_phrase(parts[1]))
-                
+
     else:
-        return make_one_triple(phrase)
-"""
+        split = phrase.split(".", 1)
+        for i in split:
+            return make_one_triple(phrase)
+
 def make_conjs(sentences):
     """
     Makes a conjunction from sentences.
@@ -326,73 +333,66 @@ def make_one_triple(sentence: str) -> str:
     """
     Makes a single triple, that should be returned as a string.
     """
+    sentence = nlp(sentence)
     neg = False
     relation = 'isA'
-    obj = None
-
-    if 'not' in sentence or 'never' in sentence:
+    obj = ''
+    found_verb = False
+    sub = ''
+    found_sub = False
+    found_obj = False
+    if 'not' in sentence.text and len(sentence.text) == 3 or 'never' in sentence.text and len(sentence.text) == 5:
         neg = True
+    SUBJ = ['NOUN', 'PRON']
+    nouns = []
+    for i in sentence.noun_chunks:
+        nouns.append(i.text)
 
-    tokens = word_tokenize(sentence)
-    tags = pos_tag(tokens)
+    # also fix the identification for an object (onj dpesnt have to be like a subj)
+    for i in sentence:
+        if i.pos_ in SUBJ:
+            if found_verb:
+                if not found_sub:
+                    sub = 'self'
+                    found_sub = True
+                elif not found_obj:
+                    obj = i.text
+                    found_obj = True
+            elif not found_sub:
+                if i.dep_ == 'nsubj':
+                    sub = 'self'
+                else:
+                    sub = i.text
+                    print("sub", sub)
+                found_sub = True
+            elif not found_obj:
+                obj = i.text
+                found_obj = True
+            #but if you first find an obj pos_ set that to be the obj
+
+        elif i.pos_ == 'VERB' or i.pos_ == 'PROPN':
+            if i.dep_ == 'ROOT':
+                relation = i
+                found_verb = True
+            elif not found_verb:
+                if i.pos_ in TO_BE:
+                    relation = 'isA'
+                elif i.pos_ in TO_HAVE:
+                    relation = 'hasA'
+                else:
+                    relation = i
+                found_verb = True
+    if not found_sub:
+        sub = 'self'
+    if neg:
+        return 'NOT(%s, %s, %s)' %(sub, relation, obj)
+    return '(%s, %s, %s)' %(sub, relation, obj)
+
+
     logging.debug("is it? %s" % sentence)
     # sentence_cleaned = sent_tokenize(sentence)[0]
     # print(tags)
 
-    try:
-        sentence_cleaned = sent_tokenize(sentence)[0]
-        start = get_subject(tags)
-
-        # TODO: This might be a phrase
-        subject_phrase = get_noun_phrase_if_exists(start[0],
-                                                   sentence_cleaned)  # make_noun_phrase(get_noun_phrase(tags))
-        subject = subject_phrase if subject_phrase != "" else start[0]
-
-        truncated_tags = tags[tags.index(start)::]
-        # print(truncated_tags)
-
-        if has_in(truncated_tags):
-            relation = has_in(truncated_tags)[0]
-            obj = get_object(truncated_tags[truncated_tags.index(has_in(truncated_tags))::])[0]
-            object_phrase = get_noun_phrase_if_exists(obj, sentence_cleaned)
-            return '(%s, %s, %s)' % (subject, relation, obj if object_phrase == "" else obj)
-        # Otherwise can SVO or SPO (last NN->)
-        elif has_verb(tags):  # Changed from truncated
-            # we need to track all the verbs and set up the rule in such a way that we pick the right verb maybe after the keyword? will need to check sentences based on sample set.
-            verb = has_verb(tags)[0][0]#Finding the first verb 
-            actionverb = tags[1][0] if tags[1][1] == "VBG" or "VBD" else ""
-            logging.debug("found verb %s"%verb)
-            if verb_before_subject(tags):
-                obj = subject
-                subject = 'self'#check if verb exists before the subject and if so then make it self
-            else:
-                
-                obj = get_object(truncated_tags[truncated_tags.index(has_verb(truncated_tags)[0])::])[0]
-                object_phrase = get_noun_phrase_if_exists(obj, sentence_cleaned)
-                obj = obj if object_phrase == "" else object_phrase
-            if verb in TO_BE:
-                logging.debug("Found an isA type verb")
-                obj = keyword_selection(sentence, obj)
-                return '(%s, %s, %s)' %(subject, 'isA', obj)
-            elif verb in TO_HAVE:
-                logging.debug("Found an hasA type verb")
-                return '(%s, %s, %s)' % (subject, 'hasA', obj)
-            else:
-                relation = verb
-        if neg:
-            return 'NOT(%s, %s, %s)' % (subject, relation, obj)
-        else:
-            #if only_noun(truncated_tags):
-              #  return '(%s, %s, %s)' %(pTriple[0], pTriple[1], subject)
-            if obj == None:
-                keyword_selection(sentence, obj)
-                return '(%s, %s, %s)' %(pTriple[0], pTriple[1], subject)
-            else :
-             return '(%s, %s, %s)' %(subject, relation, obj)
-    except TypeError:
-        logging.debug("Could not make a triple for text %s" % sentence)
-    except IndexError:
-        logging.debug("Sentence: %s is blank" % sentence)
 
 
 def only_noun(tags):
